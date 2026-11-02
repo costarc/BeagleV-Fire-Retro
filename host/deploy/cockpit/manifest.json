@@ -1,0 +1,9 @@
+{
+	"version": 0,
+	"tools": {
+		"cp300": {
+			"label": "Retro Computers",
+			"path": "index.html"
+		}
+	}
+}

@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+host/data/
+host/regs32.so
+alice/emu/build/
+# ROM images are copyrighted: never commit them
+*.rom
+*.ROM

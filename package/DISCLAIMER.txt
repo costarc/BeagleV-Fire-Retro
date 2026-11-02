@@ -1,0 +1,33 @@
+DISCLAIMER - USE AT YOUR OWN RISK
+=================================
+
+Installing the CP-300 gateware means REFLASHING THE BOARD. The FPGA bitstream, the device tree overlay and the
+Hart Software Services bootloader in the BeagleV-Fire's flash are overwritten. The board's own update mechanism keeps
+no fallback copy.
+
+A failed or interrupted flash, a power loss during the update, a defect or incompatibility in this software or
+gateware, or a different board or software version than the one it was tried on can leave the board unable to start
+("bricked"). Recovering such a board may need extra hardware (a FlashPro5/6 programmer) and skills, and may not be
+possible at all.
+
+This software and gateware are provided "AS IS", without warranty of any kind, express or implied, including but not
+limited to merchantability, fitness for a particular purpose, and non-infringement. The author and contributors
+accept NO RESPONSIBILITY OR LIABILITY for any damage to your BeagleV-Fire or any other equipment, for loss of data,
+or for any other direct or indirect loss arising from downloading, building, installing or using this package,
+including the flashing step. You use it entirely at your own risk and on your own responsibility. This disclaimer
+adds to the warranty disclaimer and the limitation of liability of the GNU General Public License v3 (sections 15 and
+16 of the file LICENSE), under which this software is released.
+
+Before you flash
+  - make sure you have a way to recover the board (see "Help! I broke my board" in the BeagleBoard documentation and
+    the flashing guide: https://docs.beagleboard.org/boards/beaglev/fire/demos-and-tutorials/flashing-board.html),
+  - use a stable power supply and do not power the board off while it updates and reboots,
+  - do not use a board you cannot afford to lose.
+
+Not affiliated
+  This is an independent hobby project. It is not made, endorsed or supported by Microchip Technology, BeagleBoard.org,
+  Prologica, Tandy or any other company. Product and company names belong to their owners. ROM images and disk
+  images are not part of this package; you are responsible for having the right to use the ones you load.
+
+By running the flashing step of the installer (or "cp300-load-gateware") you confirm that you have read this
+disclaimer and accept it.

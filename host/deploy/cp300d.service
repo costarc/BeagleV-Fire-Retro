@@ -1,0 +1,17 @@
+[Unit]
+Description=CP-300 daemon (web UI and gateware bridge)
+After=network.target
+ConditionPathExists=/dev/uio0
+
+[Service]
+User=beagle
+# another gateware may leave /dev/uio0 to something else: only run with the CP-300 design loaded
+ExecCondition=/bin/sh -c 'grep -qx cp300 /sys/class/uio/uio0/name'
+WorkingDirectory=/opt/cp300/syn/beaglev-fire/host
+# --uio: the gateware's UIO device (generic-uio overlay); use --sim to run without the gateware
+ExecStart=/usr/bin/python3 cp300d.py --uio /dev/uio0 --host 127.0.0.1 --port 8300 --data /var/lib/cp300
+Restart=on-failure
+StateDirectory=cp300
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,813 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Retro Computers</title>
+<style>
+:root { --bg:#12151a; --panel:#1b2027; --line:#2c343f; --fg:#d8dee6; --dim:#8a96a5; --acc:#46d68c; --warn:#e5a23c; --bad:#e5604f; }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.4 system-ui, sans-serif; }
+main { max-width: 1100px; margin: 0 auto; padding: 12px 16px 40px; display:grid; gap:12px; }
+header { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+h1 { font-size:18px; margin:0; font-weight:600; }
+#conn { font-size:12px; color:var(--dim); }
+#conn.on { color:var(--acc); }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px; }
+#screenwrap { background:#000; border-radius:6px; padding:0; line-height:0; }
+/* the 512x192 picture is shown on a 4:3 tube, as on the real machine: pixels are taller than wide (1024 x 768 = 2x by 4x) */
+canvas { width:100%; max-width:1024px; height:auto; image-rendering:pixelated; aspect-ratio: 4 / 3; background:#000; display:block; border-radius:6px; margin:0 auto; }
+.row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+button, select { background:#252c35; color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:6px 10px; font:inherit; cursor:pointer; }
+button:hover { border-color:var(--acc); }
+button.on { background:var(--acc); color:#06210f; border-color:var(--acc); }
+h2 { font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); margin:0 0 8px; font-weight:600; }
+.drives { display:grid; grid-template-columns: repeat(auto-fit, minmax(230px,1fr)); gap:8px; }
+.drive { border:1px dashed var(--line); border-radius:6px; padding:8px; min-height:74px; }
+.drive.over { border-color:var(--acc); background:#1d2a24; }
+.drive b { display:block; }
+.drive .nm { color:var(--dim); font-size:12px; word-break:break-all; min-height:18px; }
+.small { font-size:12px; color:var(--dim); }
+#osk { display:grid; gap:4px; user-select:none; touch-action:manipulation; }
+#osk .r { display:flex; gap:4px; justify-content:center; }
+#osk button { min-width:34px; padding:8px 6px; }
+#osk button.down { background:var(--acc); color:#06210f; }
+#msg { min-height:20px; font-size:12px; }
+#msg.err { color:var(--bad); }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1 id="title">CP-300</h1>
+  <select id="machine" title="Machine"><option value="cp300">CP-300</option><option value="cp400">CP-400 (CoCo 2)</option><option value="msx1">MSX1</option><option value="zx">ZX Spectrum 48K</option><option value="mc1000">MC-1000</option><option value="alice">Alice (MC-10)</option></select><span id="conn">connecting…</span><span class="small" id="fps"></span>
+</header>
+
+<div class="panel" id="screenwrap"><canvas id="scr" width="512" height="192" tabindex="0" aria-label="screen"></canvas></div>
+<div id="msg"></div>
+
+<div class="panel">
+  <div class="row">
+    <button id="bRun" title="The power switch: off holds the machine, on starts it from nothing (the memory is cleared)">Power</button>
+    <button id="bReset" title="Like the machine's RESET button: the memory is kept, so a game usually starts again where it was">Reset</button>
+    <button id="bTurbo">Turbo</button>
+    <button id="bArt" title="CP-400: games such as Zaxxon draw 2 colour pictures whose pixel patterns a TV shows as orange and blue (artifact colour). Click: off / orange-blue / blue-orange">Artifact: off</button>
+    <button id="bWp">Write-protect disks</button>
+    <button id="bSound">Sound</button>
+    <label class="small">Colour
+      <select id="phos"><option value="#e8e8e8">White</option><option value="#40ff60" selected>Green</option><option value="#ffb000">Amber</option></select>
+    </label>
+    <span class="small">Click the screen and type: the keys go to the CP-300. Esc = BREAK, Backspace = left arrow.</span>
+  </div>
+</div>
+
+<div class="panel" id="drivesPanel">
+  <h2>Disk drives — drop a .dsk / .dmk / .hfe / .jv1 / .jv3 file on a drive</h2>
+  <div class="drives" id="drives"></div>
+</div>
+
+<div class="panel" id="sdPanel">
+  <h2>FreHD hard disk — the files of the FreHD's SD card (FREHD.ROM, hard disk images); mount an image as hard disk 0 or 1</h2>
+  <div class="row">
+    <label title="The FreHD boot disks (for example the FreHD pack's) load FREHD.ROM from the FreHD's SD card, and list and mount hard disk images (.hdv) from it. The card is a folder on the board.">
+      Add a file (FREHD.ROM, an .hdv image) <input type="file" id="sdFile"></label>
+    <button id="sdLoad0" title="Pick an .hdv image: it is put on the SD card and mounted as hard disk 0">Load image into HD 0...</button>
+    <button id="sdLoad1" title="Pick an .hdv image: it is put on the SD card and mounted as hard disk 1">Load image into HD 1...</button>
+  </div>
+  <div id="sdFiles"></div>
+  <div class="small">An image mounted here is hard disk 0 or 1 of the CP-300. The FreHD ROM's own menu mounts the same files.</div>
+</div>
+
+<div class="panel" id="idePanel" style="display:none">
+  <h2>CP-400 hard disk (MiniIDE) — a raw image of 512 byte sectors, any size (a few hundred MB take a while; the file is used in place)</h2>
+  <div class="row">
+    <b>IDE disk</b> <span class="small" id="ideName">empty</span>
+    <button id="ideDl" style="display:none">Download</button><button id="ideEj" style="display:none">Eject</button>
+    <input type="file" id="ideFile">
+  </div>
+  <div class="small">Needs the cartridge ROM above (the DOS). The disk is used in place: the CP-400's writes go straight to the file on the board.</div>
+</div>
+
+<div class="panel" id="cocoDiskPanel" style="display:none">
+  <h2>CP-400 floppy drives — drop a CoCo .dsk or .jvc image (35 or 40 tracks, 18 sectors of 256 bytes) on a drive</h2>
+  <div class="drives" id="cocodrives"></div>
+  <div class="small">Needs a Disk BASIC ROM as the cartridge (8 KB, for example Disk BASIC 1.1 or an HDB-DOS image). With a floppy image mounted the controller card is there; without one the CP-400 sees no floppy hardware (the MiniIDE disk is unaffected).</div>
+</div>
+
+<div class="panel" id="msxDiskPanel" style="display:none">
+  <h2>MSX disk interface (slot 2) — drop a raw .dsk image (720 KB, 360 KB, 640 KB or 320 KB) on a drive</h2>
+  <div class="drives" id="msxdrives"></div>
+  <div class="small">Needs the disk interface ROM below (16 KB, "National" type: the Gradiente Expert DD Plus ROM works). The drives are used as an MSX-DOS disk; FORMAT is not supported (no WRITE TRACK): use formatted images.</div>
+</div>
+
+<div class="panel" id="tapePanel">
+  <h2>Cassette — .tap (ZX Spectrum), .cas (MSX, CoCo, MC-10, CP-300, by the machine selected), .c10 / .k7, .wav</h2>
+  <div class="row">
+    <b>Tape</b> <span class="small" id="tapeName">empty</span>
+    <input type="file" id="tapeFile" accept=".tap,.cas,.c10,.k7,.wav,.tpl">
+  </div>
+  <div class="row">
+    <button id="tPlay">Play</button><button id="tStop">Stop</button><button id="tRew">Rewind</button><button id="tEject">Eject</button>
+    <label><input type="checkbox" id="tForce"> play even when the computer's motor is off (ZX Spectrum, MC-1000, Alice and CP-300 have none)</label>
+  </div>
+  <div class="row">
+    <button id="tRec">Record</button><button id="tStopRec">Stop recording</button><button id="tSave">Save recording (.wav)</button>
+    <span class="small" id="tapeRec"></span>
+  </div>
+  <div class="small">The tape runs while Play is on and the computer's motor is on (MSX, CP-400); on the other machines press Play when the computer asks for it.</div>
+</div>
+
+<div class="panel">
+  <h2>ROMs (kept on the board, never in the bitstream)</h2>
+  <div class="row" id="rows300">
+    <label>System ROM, 16384 bytes <input type="file" id="romSys"></label>
+    <label>Character generator, 2048 bytes <input type="file" id="romChar"></label>
+  </div>
+  <div class="row" id="rows400" style="display:none">
+    <label title="The original CP-400 ROM files: cp400.rom / cp400e.rom (16 KB: Extended + Color BASIC) or cp400disk.rom / cp400edisk.rom (24 KB: plus the Disk BASIC cartridge). A 2 byte header is skipped.">Complete ROM (16 or 24 KB, splits itself) <input type="file" id="romAll400"></label>
+    <label>Color BASIC, 8192 bytes <input type="file" id="romBas"></label>
+    <label>Extended Color BASIC, 8192 bytes <input type="file" id="romExt"></label>
+    <label>Cartridge (a DOS: MiniIDE / Disk BASIC / HDB-DOS), 8192 bytes, optional <input type="file" id="romCart"></label>
+    <button id="bCartEj" title="Remove the cartridge (the machine restarts)">Eject cartridge</button>
+  </div>
+  <div class="row" id="rowsMsx" style="display:none">
+    <label>MSX1 BIOS + BASIC, 32768 bytes <input type="file" id="romMsxBios"></label>
+    <label title="Slot 0, page 2 ($8000-$BFFF). C-BIOS needs its logo ROM here (cbios_logo_msx1.rom); MSX BIOSes do not use it.">
+      Slot 0 page 2 ROM, 16384 bytes, optional <input type="file" id="romMsxP2"></label>
+    <button id="bMsxP2Ej" title="Remove the slot 0 page 2 ROM (the machine restarts)">Eject page 2 ROM</button>
+    <label title="Slot 1, $4000-$BFFF (a 16 KB cartridge is at $4000)">Cartridge ROM, up to 32768 bytes, optional <input type="file" id="romMsxCart"></label>
+    <button id="bMsxCartEj" title="Remove the cartridge">Eject cartridge</button>
+    <label title="Slot 2, page 1 ($4000-$7FFF): the disk interface's ROM, with a WD2793 at $7FB8-$7FBC (the layout of the Gradiente Expert DD Plus). The machine restarts.">
+      Disk interface ROM, 16384 bytes, optional <input type="file" id="romMsxDisk"></label>
+    <button id="bMsxDiskEj" title="Remove the disk interface">Eject disk interface</button>
+  </div>
+  <div class="row" id="rowsZx" style="display:none">
+    <label>ZX Spectrum 48K ROM, 16384 bytes <input type="file" id="romZx"></label>
+  </div>
+  <div class="row" id="rowsMc" style="display:none">
+    <label>MC-1000 ROM, 16384 bytes <input type="file" id="romMc"></label>
+  </div>
+  <div class="row" id="rowsAlice" style="display:none">
+    <label>Alice (MC-10) BASIC ROM, 8192 bytes <input type="file" id="romAlice"></label>
+  </div>
+  <div class="row"><span class="small" id="romState"></span></div>
+</div>
+
+<div class="panel"><h2>On-screen keyboard</h2><div id="osk"></div></div>
+</main>
+
+<script>
+// the page may be served under a prefix (the stock web server proxies /cp300/): all URLs are relative to it
+const BASE = location.pathname.replace(/[^\/]*$/, "");
+
+"use strict";
+// ---- keyboard matrices
+// CP-300 (bit = 8 * row + column). The symbols follow the PC-style layout of the CP-500 ROM (measured on the board: press each
+// matrix bit, read the screen): row 0 bit 0 is ' (shifted "), the digit row 0-9 (shifted ) ! @ # $ % ^ & * (), then - ; , = . /
+// (shifted _ : < + > ?).
+const ROWS = ["@ABCDEFG", "HIJKLMNO", "PQRSTUVW", "XYZ"];
+const NAMED = { ENTER:48, CLEAR:49, BREAK:50, UP:51, DOWN:52, LEFT:53, RIGHT:54, SPACE:55, LSHIFT:56, RSHIFT:57 };
+const CHAR = {};
+ROWS.forEach((r, i) => [...r].forEach((c, j) => CHAR[c] = 8 * i + j));
+const PLAIN = { "'":0, "-":42, ";":43, ",":44, "=":45, ".":46, "/":47 };
+const SHIFTED = { '"':0, ")":32, "!":33, "@":34, "#":35, "$":36, "%":37, "^":38, "&":39, "*":40, "(":41, "_":42, ":":43, "<":44, "+":45, ">":46, "?":47 };
+for (let d = 0; d <= 9; d++) CHAR[String(d)] = 32 + d;
+// CP-400 (CoCo 2): bit = 8 * column + row; column = PIA B bit (0-7), row = PIA A bit (0-6). Standard CoCo keyboard.
+const CROWS = ["@ABCDEFG", "HIJKLMNO", "PQRSTUVW", "XYZ", "01234567", "89:;,-./"];
+const CNAMED = { ENTER:6, CLEAR:14, BREAK:22, ALT:30, CTRL:38, F1:46, F2:54, LSHIFT:62, RSHIFT:62, UP:27, DOWN:35, LEFT:43, RIGHT:51, SPACE:59 };
+const CCHAR = {};
+CROWS.forEach((r, row) => [...r].forEach((c, col) => CCHAR[c] = 8 * col + row));
+const CSHIFTED = { "!":"1", '"':"2", "#":"3", "$":"4", "%":"5", "&":"6", "'":"7", "(":"8", ")":"9", "*":":", "+":";", "<":",", "=":"-", ">":".", "?":"/" };
+
+// MSX (bit = 8 * row + column): rows 0-5 the characters, 6 modifiers and F1-F3, 7 F4 F5 ESC TAB STOP BS SELECT RETURN, 8 SPACE HOME INS DEL and the arrows
+const MSXC = {};
+"01234567".split("").forEach((c, i) => MSXC[c] = i);
+"89-=\\[];".split("").forEach((c, i) => MSXC[c] = 8 + i);
+"'`,./".split("").forEach((c, i) => MSXC[c] = 16 + i);
+"ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").forEach((c, i) => MSXC[c] = i < 2 ? 22 + i : 24 + (i - 2));
+const MSXN = { SHIFT:48, CTRL:49, GRAPH:50, CAPS:51, CODE:52, F1:53, F2:54, F3:55, F4:56, F5:57, ESC:58, TAB:59, STOP:60, BS:61, SELECT:62,
+               RETURN:63, SPACE:64, HOME:65, INS:66, DEL:67, LEFT:68, UP:69, DOWN:70, RIGHT:71 };
+const MSXS = { "!":"1", "@":"2", "#":"3", "$":"4", "%":"5", "^":"6", "&":"7", "*":"8", "(":"9", ")":"0", "_":"-", "+":"=", "{":"[", "}":"]",
+               "|":"\\", ":":";", '"':"'", "~":"`", "<":",", ">":".", "?":"/" };
+function msxBits(e) {
+  const k = e.key;
+  if (k.length === 1) {
+    const u = k.toUpperCase();
+    if (u in MSXC && !(k in MSXS)) return [MSXC[u]];
+    if (k in MSXS) return [MSXC[MSXS[k]], MSXN.SHIFT];
+    if (k === " ") return [MSXN.SPACE];
+    return [];
+  }
+  switch (k) {
+    case "Enter": return [MSXN.RETURN];
+    case "Backspace": return [MSXN.BS];
+    case "Escape": return [MSXN.ESC];
+    case "Tab": return [MSXN.TAB];
+    case "Pause": return [MSXN.STOP];
+    case "Delete": return [MSXN.DEL];
+    case "Insert": return [MSXN.INS];
+    case "Home": return [MSXN.HOME];
+    case "End": return [MSXN.SELECT];
+    case "ArrowLeft": return [MSXN.LEFT];
+    case "ArrowRight": return [MSXN.RIGHT];
+    case "ArrowUp": return [MSXN.UP];
+    case "ArrowDown": return [MSXN.DOWN];
+    case "Shift": return [MSXN.SHIFT];
+    case "Control": return [MSXN.CTRL];
+    case "Alt": return [MSXN.GRAPH];
+    case "CapsLock": return [MSXN.CAPS];
+    case "F1": return [MSXN.F1];
+    case "F2": return [MSXN.F2];
+    case "F3": return [MSXN.F3];
+    case "F4": return [MSXN.F4];
+    case "F5": return [MSXN.F5];
+  }
+  return [];
+}
+
+// ZX Spectrum: 8 half rows of 5 keys (bit = 8 * row + key), row r is read with address line A(8 + r) low:
+// 0 CAPS SHIFT Z X C V, 1 A S D F G, 2 Q W E R T, 3 1 2 3 4 5, 4 0 9 8 7 6, 5 P O I U Y, 6 ENTER L K J H, 7 SPACE SYMBOL SHIFT M N B
+const ZXC = {};
+["\u0001ZXCV", "ASDFG", "QWERT", "12345", "09876", "POIUY", "\u0002LKJH", "\u0003\u0004MNB"].forEach((row, r) =>
+  row.split("").forEach((c, k) => ZXC[c] = 8 * r + k));
+const ZXN = { CAPS: 0, ENTER: 48, SPACE: 56, SYMBOL: 57 };
+// characters typed with SYMBOL SHIFT
+const ZXSYM = { "!":"1", "@":"2", "#":"3", "$":"4", "%":"5", "&":"6", "'":"7", "(":"8", ")":"9", "_":"0", "<":"R", ">":"T", ";":"O",
+  "\"":"P", "^":"H", "-":"J", "+":"K", "=":"L", ":":"Z", "?":"C", "/":"V", "*":"B", ",":"N", ".":"M" };
+function zxBits(e) {
+  const k = e.key;
+  if (k.length === 1) {
+    const u = k.toUpperCase();
+    if (k === " ") return [ZXN.SPACE];
+    if (k in ZXSYM) return [ZXC[ZXSYM[k]], ZXN.SYMBOL];
+    if (u in ZXC) return /[A-Z]/.test(k) ? [ZXC[u], ZXN.CAPS] : [ZXC[u]];   // capitals with CAPS SHIFT, as the Spectrum types them
+    return [];
+  }
+  switch (k) {
+    case "Enter": return [ZXN.ENTER];
+    case "Shift": return [ZXN.CAPS];
+    case "Control": return [ZXN.SYMBOL];
+    case "Backspace": return [ZXN.CAPS, ZXC["0"]];      // DELETE
+    case "ArrowLeft": return [ZXN.CAPS, ZXC["5"]];
+    case "ArrowDown": return [ZXN.CAPS, ZXC["6"]];
+    case "ArrowUp": return [ZXN.CAPS, ZXC["7"]];
+    case "ArrowRight": return [ZXN.CAPS, ZXC["8"]];
+    case "Escape": return [ZXN.CAPS, ZXN.SPACE];        // BREAK
+    case "CapsLock": return [ZXN.CAPS, ZXC["2"]];
+  }
+  return [];
+}
+
+// MC-1000: 8 rows x 8 columns (bit = 8 * row + column), the keys in ASCII order: column 0 @ A-G, 1 H-O, 2 P-W, 3 X Y Z RETURN SPACE
+// RUBOUT ' ESC, 4 0-7, 5 8 9 ; : , - . /; SHIFT (bit 6) and CTRL (bit 7) count in every row (as Victor Trucco's MC1000 core)
+const MCC = {};
+["@ABCDEFG", "HIJKLMNO", "PQRSTUVW", "XYZ\u0001 \u0002'\u0003", "01234567", "89;:,-./"].forEach((col, c) =>
+  col.split("").forEach((k, r) => MCC[k] = 8 * r + c));
+const MCN = { RETURN: MCC["\u0001"], SPACE: MCC[" "], RUBOUT: MCC["\u0002"], ESC: MCC["\u0003"], SHIFT: 6, CTRL: 7 };
+const MCS = { "!":"1", "\"":"2", "#":"3", "$":"4", "%":"5", "&":"6", "(":"8", ")":"9", "+":";", "*":":", "<":",", "=":"-", ">":".", "?":"/" };
+function mcBits(e) {
+  const k = e.key;
+  if (k.length === 1) {
+    const u = k.toUpperCase();
+    if (k in MCS) return [MCC[MCS[k]], MCN.SHIFT];
+    if (u in MCC) return [MCC[u]];
+    return [];
+  }
+  switch (k) {
+    case "Enter": return [MCN.RETURN];
+    case "Backspace": return [MCN.RUBOUT];
+    case "Escape": return [MCN.ESC];
+    case "Shift": return [MCN.SHIFT];
+    case "Control": return [MCN.CTRL];
+    case "ArrowLeft": return [MCC["Y"]];          // the cursor keys as in Trucco's core
+    case "ArrowDown": return [MCC["Q"]];
+    case "ArrowUp": return [MCC["I"]];
+    case "ArrowRight": return [MCC["1"]];
+  }
+  return [];
+}
+
+// Alice (MC-10 with the AZERTY differences, alice/emu/alice.c): 8 columns (the 6803's port 1 strobe PB0..PB7) x rows 0..6, bit = 8 * column + row;
+// row 6 holds CTRL (PB0), BREAK (PB2) and SHIFT (PB7)
+const ALKEYS = [
+  ["@","H","P","X","0","8","CTRL"], ["Q","I","A","Y","1","9"], ["B","J","R","W","2",":","BREAK"], ["C","K","S","","3","M"],
+  ["D","L","T","","4",","], ["E","/","U","","5","-"], ["F","N","V","RETURN","6","."], ["G","O","Z","SPACE","7",";","SHIFT"],
+];
+const ALC = {};
+ALKEYS.forEach((col, c) => col.forEach((k, r) => { if (k) ALC[k] = 8 * c + r; }));
+const ALS = { "!":"1", "\"":"2", "#":"3", "$":"4", "%":"5", "&":"6", "'":"7", "(":"8", ")":"9", "*":":", "+":";", "<":",", "=":"-", ">":".", "?":"/" };
+function aliceBits(e) {
+  const k = e.key;
+  if (k.length === 1) {
+    const u = k.toUpperCase();
+    if (k in ALS) return [ALC[ALS[k]], ALC.SHIFT];
+    if (k === " ") return [ALC.SPACE];
+    if (u in ALC && u.length === 1) return [ALC[u]];
+    return [];
+  }
+  switch (k) {
+    case "Enter": return [ALC.RETURN];
+    case "Escape": return [ALC.BREAK];
+    case "Shift": return [ALC.SHIFT];
+    case "Control": return [ALC.CTRL];
+  }
+  return [];
+}
+
+// the bits a browser key event stands for, as the machine types it
+function bitsFor(e) {
+  if (machine === "alice") return aliceBits(e);
+  if (machine === "mc1000") return mcBits(e);
+  if (machine === "msx1") return msxBits(e);
+  if (machine === "zx") return zxBits(e);
+  const k = e.key, coco = machine === "cp400";
+  if (k.length === 1) {
+    const u = k.toUpperCase();
+    if (coco) {
+      if (u in CCHAR) return [CCHAR[u]];
+      if (k in CSHIFTED) return [CCHAR[CSHIFTED[k]], CNAMED.LSHIFT];
+      if (k === " ") return [CNAMED.SPACE];
+      return [];
+    }
+    if (u in CHAR && u !== "@") return [CHAR[u]];          // letters are capitals, as the ROM prints them
+    if (k in PLAIN) return [PLAIN[k]];
+    if (k in SHIFTED) return [SHIFTED[k], NAMED.LSHIFT];
+    if (k === " ") return [NAMED.SPACE];
+    return [];
+  }
+  const N = coco ? CNAMED : NAMED;
+  switch (k) {
+    case "Enter": return [N.ENTER];
+    case "Escape": case "Pause": return [N.BREAK];
+    case "Home": case "Delete": return [N.CLEAR];
+    case "Backspace": case "ArrowLeft": return [N.LEFT];
+    case "ArrowRight": return [N.RIGHT];
+    case "ArrowUp": return [N.UP];
+    case "ArrowDown": return [N.DOWN];
+    case "Shift": return [e.code === "ShiftRight" ? N.RSHIFT : N.LSHIFT];
+    case "Control": if (coco) return [CNAMED.CTRL]; break;
+    case "Alt": if (coco) return [CNAMED.ALT]; break;
+    case "F1": if (coco) return [CNAMED.F1]; break;
+    case "F2": if (coco) return [CNAMED.F2]; break;
+  }
+  return [];
+}
+
+let ws = null, state = null, keyBits = 0n, machine = "cp300";
+const held = new Map();                                    // key id -> bits
+const $ = id => document.getElementById(id);
+function say(t, err) { const m = $("msg"); m.textContent = t || ""; m.className = err ? "err" : ""; }
+
+function sendKeys() {
+  let v = 0n;
+  for (const bits of held.values()) for (const b of bits) v |= 1n << BigInt(b);
+  if (v === keyBits) return;
+  keyBits = v;
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify({ keys: v.toString(16).padStart(machine === "msx1" ? 22 : 16, "0") }));
+}
+function ctrl(c) { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ ctrl: c })); }
+
+// ---- physical keyboard
+const scr = $("scr");
+scr.addEventListener("keydown", e => {
+  if ((e.ctrlKey || e.metaKey || e.altKey) && machine !== "cp400" && machine !== "msx1" && machine !== "zx" && machine !== "mc1000" && machine !== "alice") return;
+  const bits = bitsFor(e); if (!bits.length) return;
+  e.preventDefault();
+  if (!e.repeat) { held.set("k:" + e.code, bits); sendKeys(); }
+});
+scr.addEventListener("keyup", e => { if (held.delete("k:" + e.code)) { e.preventDefault(); sendKeys(); } });
+scr.addEventListener("blur", () => { for (const k of [...held.keys()]) if (k.startsWith("k:")) held.delete(k); sendKeys(); });
+scr.addEventListener("click", () => scr.focus());
+
+// ---- on-screen keyboard
+const OSK = {
+  cp300: [
+    ["1","2","3","4","5","6","7","8","9","0","-","=","BREAK"],
+    ["CLEAR","Q","W","E","R","T","Y","U","I","O","P","'"],
+    ["A","S","D","F","G","H","J","K","L",";","ENTER"],
+    ["LSHIFT","Z","X","C","V","B","N","M",",",".","/","RSHIFT"],
+    ["SPACE","LEFT","UP","DOWN","RIGHT"],
+  ],
+  alice: [
+    ["1","2","3","4","5","6","7","8","9","0",":","-","BREAK"],
+    ["Q","W","E","R","T","Y","U","I","O","P","@"],
+    ["CTRL","A","S","D","F","G","H","J","K","L",";","RETURN"],
+    ["SHIFT","Z","X","C","V","B","N","M",",",".","/"],
+    ["SPACE"],
+  ],
+  mc1000: [
+    ["1","2","3","4","5","6","7","8","9","0",":","-","RUBOUT"],
+    ["ESC","Q","W","E","R","T","Y","U","I","O","P","@"],
+    ["CTRL","A","S","D","F","G","H","J","K","L",";","RETURN"],
+    ["SHIFT","Z","X","C","V","B","N","M",",",".","/"],
+    ["SPACE"],
+  ],
+  zx: [
+    ["1","2","3","4","5","6","7","8","9","0"],
+    ["Q","W","E","R","T","Y","U","I","O","P"],
+    ["A","S","D","F","G","H","J","K","L","ENTER"],
+    ["CAPS","Z","X","C","V","B","N","M","SYMBOL","SPACE"],
+  ],
+  msx1: [
+    ["ESC","1","2","3","4","5","6","7","8","9","0","-","=","BS"],
+    ["TAB","Q","W","E","R","T","Y","U","I","O","P","[","]","RETURN"],
+    ["CTRL","A","S","D","F","G","H","J","K","L",";","'"],
+    ["SHIFT","Z","X","C","V","B","N","M",",",".","/"],
+    ["GRAPH","SPACE","STOP","SELECT","LEFT","UP","DOWN","RIGHT","F1","F2","F3","F4","F5"],
+  ],
+  cp400: [
+    ["1","2","3","4","5","6","7","8","9","0",":","-","BREAK"],
+    ["CLEAR","Q","W","E","R","T","Y","U","I","O","P","@"],
+    ["A","S","D","F","G","H","J","K","L",";","ENTER"],
+    ["LSHIFT","Z","X","C","V","B","N","M",",",".","/","RSHIFT"],
+    ["CTRL","ALT","F1","F2","SPACE","LEFT","UP","DOWN","RIGHT"],
+  ],
+};
+let oskFor = null;
+function buildOsk() {
+  if (oskFor === machine) return;
+  oskFor = machine;
+  const host = $("osk"); host.textContent = "";
+  OSK[machine].forEach(row => {
+    const r = document.createElement("div"); r.className = "r";
+    row.forEach(name => {
+      const b = document.createElement("button");
+      b.textContent = name.length > 1 ? name[0] + name.slice(1).toLowerCase() : name;
+      const bit = machine === "msx1" ? (name in MSXN ? MSXN[name] : MSXC[name])
+                : machine === "zx" ? (name in ZXN ? ZXN[name] : ZXC[name])
+                : machine === "alice" ? ALC[name]
+                : machine === "mc1000" ? (name in MCN ? MCN[name] : MCC[name])
+                : machine === "cp400" ? (name in CNAMED ? CNAMED[name] : CCHAR[name])
+                                      : (name in NAMED ? NAMED[name] : name in CHAR ? CHAR[name] : PLAIN[name]);
+      const id = "o:" + name;
+      const down = () => { held.set(id, [bit]); b.classList.add("down"); sendKeys(); };
+      const up = () => { held.delete(id); b.classList.remove("down"); sendKeys(); };
+      b.addEventListener("pointerdown", e => { e.preventDefault(); b.setPointerCapture(e.pointerId); down(); });
+      b.addEventListener("pointerup", up); b.addEventListener("pointercancel", up);
+      r.appendChild(b);
+    });
+    host.appendChild(r);
+  });
+}
+
+// ---- picture
+const g = scr.getContext("2d");
+let img = g.createImageData(512, 192);
+// CP-400 colour indices (bvf_fb.v): black, green, yellow, blue, red, white, cyan, magenta, orange, dark green, dark orange
+const CPAL = [[0,0,0],[0,255,0],[255,255,0],[0,0,255],[255,0,0],[255,255,255],[0,255,255],[255,0,255],[255,170,0],[0,85,0],[85,85,0]];
+// MSX1 (the TMS9918's 15 colours, 0 = transparent shown black) and ZX Spectrum ({bright, green, red, blue}) colour indices
+const MPAL = [[0,0,0],[0,0,0],[33,200,66],[94,220,120],[84,85,237],[125,118,252],[212,82,77],[66,235,245],[252,85,84],[255,121,120],
+  [212,193,84],[230,206,128],[33,176,59],[201,91,186],[204,204,204],[255,255,255]];
+const ZPAL = [...Array(16).keys()].map(i => { const v = i & 8 ? 255 : 215; return [i & 2 ? v : 0, i & 4 ? v : 0, i & 1 ? v : 0]; });
+// MC-1000: the MC6847 colour indexes of mc1000/mc1000_vdg_pack-p.vhd
+const VPAL = [[0,0,0],[0,0,0],[0,124,0],[145,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[7,255,0],[255,255,0],[59,8,255],[204,0,59],
+  [255,255,255],[7,227,153],[255,28,255],[255,129,0]];
+const PAL4 = { cp400: CPAL, msx1: MPAL, zx: ZPAL, mc1000: VPAL, alice: VPAL };
+function setMachine(m) {
+  const W = m === "cp300" ? 512 : 256, H = 192;
+  if (m === machine && scr.width === W) return;
+  machine = m;
+  scr.width = W; scr.height = H;
+  scr.style.aspectRatio = "4 / 3";
+  img = g.createImageData(W, H);
+  prev = null; wantKey = false;
+  $("title").textContent = { cp300: "CP-300", cp400: "CP-400", msx1: "MSX1", zx: "ZX Spectrum", mc1000: "MC-1000", alice: "Alice" }[m] || m;
+  $("machine").value = m;
+  $("rows300").style.display = m === "cp300" ? "" : "none";
+  $("rows400").style.display = m === "cp400" ? "" : "none";
+  $("rowsMsx").style.display = m === "msx1" ? "" : "none";
+  $("rowsZx").style.display = m === "zx" ? "" : "none";
+  $("rowsMc").style.display = m === "mc1000" ? "" : "none";
+  $("rowsAlice").style.display = m === "alice" ? "" : "none";
+  $("bArt").style.display = m === "cp400" ? "" : "none";
+  $("idePanel").style.display = m === "cp400" ? "" : "none";
+  $("drivesPanel").style.display = m === "cp300" ? "" : "none";
+  $("sdPanel").style.display = m === "cp300" ? "" : "none";     // the floppy drives and the FreHD hard disks are the CP-300's
+  held.clear(); keyBits = -1n; sendKeys();
+  buildOsk();
+}
+let prev = null, ink = [0x40, 0xff, 0x60], frames = 0, lastQueue = Promise.resolve();
+function setInk(hex) { ink = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)); if (prev) draw(prev); }
+let art = 0;
+try { art = +localStorage.getItem("cp400art") || 0; } catch (e) {}
+function artifact(fb, d) {
+  // only for a picture of black and white (index 0 and 5): a pair of pixels (even, odd) gives 00 black, 11 white,
+  // 10 and 01 the two artifact colours (which one is which depends on the phase, art 1 or 2)
+  for (let i = 0; i < 24576; i++) { const v = fb[i]; if ((v & 15) > 5 || (v >> 4) > 5 || ((v & 15) % 5) || ((v >> 4) % 5)) return false; }
+  const O = [255, 120, 0], B = [0, 120, 255];
+  for (let i = 0, p = 0; i < 24576; i++) {
+    const v = fb[i], a = (v & 15) ? 1 : 0, b = (v >> 4) ? 1 : 0;
+    let c;
+    if (a === b) c = a ? [255, 255, 255] : [0, 0, 0];
+    else c = (a ^ (art === 2 ? 1 : 0)) ? O : B;
+    d[p++] = c[0]; d[p++] = c[1]; d[p++] = c[2]; d[p++] = 255;
+    d[p++] = c[0]; d[p++] = c[1]; d[p++] = c[2]; d[p++] = 255;
+  }
+  return true;
+}
+function draw(fb) {
+  const d = img.data;
+  if (machine !== "cp300") {                      // 256 x 192 colour indexes, two per byte
+    if (machine === "cp400" && art && artifact(fb, d)) { g.putImageData(img, 0, 0); return; }
+    const P = PAL4[machine] || CPAL;
+    for (let i = 0, p = 0; i < 24576; i++) {
+      const v = fb[i];
+      const a = P[v & 15] || P[0], b = P[v >> 4] || P[0];
+      d[p++] = a[0]; d[p++] = a[1]; d[p++] = a[2]; d[p++] = 255;
+      d[p++] = b[0]; d[p++] = b[1]; d[p++] = b[2]; d[p++] = 255;
+    }
+    g.putImageData(img, 0, 0);
+    return;
+  }
+  for (let i = 0, p = 0; i < 12288; i++) {
+    const v = fb[i];
+    for (let b = 0; b < 8; b++, p += 4) {
+      const on = (v >> b) & 1;
+      d[p] = on ? ink[0] : 0; d[p + 1] = on ? ink[1] : 0; d[p + 2] = on ? ink[2] : 0; d[p + 3] = 255;
+    }
+  }
+  g.putImageData(img, 0, 0);
+}
+async function inflate(bytes) {
+  const s = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate"));
+  return new Uint8Array(await new Response(s).arrayBuffer());
+}
+// frames: kind 0 = whole, kind 1 = XOR with the previous one, seq + 1 each. Without the right previous frame an XOR frame
+// cannot be drawn: ask the daemon (once) for a whole frame and skip the XOR frames until it comes.
+let prevSeq = -1, wantKey = false;
+function needKey() {
+  prev = null;
+  if (!wantKey && ws && ws.readyState === 1) { wantKey = true; ws.send(JSON.stringify({ keyframe: 1 })); }
+}
+function onFrame(buf) {
+  const seq = buf[1] | (buf[2] << 8), kind = buf[3], z = buf.subarray(4);
+  lastQueue = lastQueue.then(async () => {
+    if (kind === 1 && (!prev || seq !== ((prevSeq + 1) & 0xffff))) { needKey(); return; }
+    const data = await inflate(z);
+    if (kind === 1) for (let i = 0; i < data.length; i++) data[i] ^= prev[i];
+    else wantKey = false;
+    prev = data; prevSeq = seq; frames++; draw(data);
+  }).catch(needKey);
+}
+setInterval(() => { $("fps").textContent = ws && ws.readyState === 1 ? frames + " fps" : ""; frames = 0; }, 1000);
+
+// ---- audio: the core sends speaker level changes with microsecond stamps
+let ac = null, soundOn = false, playhead = 0, lastT = null, lastLevel = 0x10;
+function audioEvents(buf) {
+  if (!soundOn || !ac) return;
+  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength), n = (buf.length - 1) / 6, rate = ac.sampleRate;
+  if (playhead < ac.currentTime) { playhead = ac.currentTime + 0.06; lastT = null; }   // a gap: start over, silent
+  const chunks = []; let total = 0;
+  for (let i = 0; i < n; i++) {
+    const t = dv.getUint32(1 + 6 * i, true), lvl = dv.getUint16(5 + 6 * i, true);
+    if (lastT !== null) {
+      const dt = (t - lastT) & 0x7fffff, cnt = Math.min(Math.round(dt * rate / 1e6), rate);
+      if (cnt > 0) { chunks.push([cnt, lastLevel]); total += cnt; }
+    }
+    lastT = t; lastLevel = lvl;
+  }
+  if (!total) return;
+  const ab = ac.createBuffer(1, total, rate), ch = ab.getChannelData(0);
+  let o = 0;
+  for (const [cnt, lvl] of chunks) { ch.fill(machine === "alice" ? (lvl - 128) / 256 * 0.25 : machine === "msx1" || machine === "zx" || machine === "mc1000" ? (lvl - 100) / 128 * 0.25 : (lvl - 16) / 16 * 0.25, o, o + cnt); o += cnt; }
+  const src = ac.createBufferSource(); src.buffer = ab; src.connect(ac.destination);
+  src.start(playhead); playhead += total / rate;
+}
+
+// ---- connection
+function connect() {
+  ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + BASE + "ws");
+  ws.binaryType = "arraybuffer";
+  ws.onopen = () => { $("conn").textContent = "connected"; $("conn").className = "on"; prev = null; wantKey = false; keyBits = -1n; sendKeys(); };
+  ws.onclose = () => { $("conn").textContent = "disconnected, retrying…"; $("conn").className = ""; setTimeout(connect, 1500); };
+  ws.onmessage = ev => {
+    if (typeof ev.data === "string") { showState(JSON.parse(ev.data)); return; }
+    const b = new Uint8Array(ev.data);
+    if (b[0] === 1 || b[0] === 3 || b[0] === 4) onFrame(b); else if (b[0] === 2) audioEvents(b);
+  };
+}
+
+// ---- state, drives, ROMs
+function showState(s) {
+  state = s;
+  $("bRun").classList.toggle("on", !!s.run); $("bRun").textContent = s.run ? "Power: on" : "Power: off";
+  if (!s.run) { prev = null; draw(new Uint8Array(machine === "cp300" ? 12288 : 24576)); }       // switched off: a black screen
+  $("bTurbo").classList.toggle("on", !!s.turbo);
+  $("bWp").classList.toggle("on", !!s.wp);
+  setMachine(s.machine || "cp300");
+  const ide = s.ide || { size: 0 };
+  $("ideName").textContent = ide.size ? ide.name + " (" + (ide.size / 1048576).toFixed(1) + " MB)" : "empty";
+  $("ideDl").style.display = $("ideEj").style.display = ide.size ? "" : "none";
+  const ok = machine === "msx1" ? s.roms.msx1bios : machine === "zx" ? s.roms.zx48 : machine === "mc1000" ? s.roms.mc1000 : machine === "alice" ? s.roms.alice
+           : machine === "cp400" ? (s.roms.cp400bas && s.roms.cp400ext) : (s.roms.system && s.roms.chargen);
+  $("romState").textContent = machine === "msx1" ? (ok ? "BIOS loaded" + (s.roms.msx1cart ? ", cartridge in slot 1" : "") : "load the BIOS to start")
+                            : machine === "zx" || machine === "mc1000" || machine === "alice" ? (ok ? "ROM loaded" : "load the ROM to start")
+                            : ok ? "both ROMs loaded" : "load both ROMs to start";
+  $("bMsxCartEj").style.display = s.roms.msx1cart ? "" : "none";
+  $("bMsxP2Ej").style.display = s.roms.msx1p2 ? "" : "none";
+  $("bCartEj").style.display = s.roms.cp400cart ? "" : "none";
+  showSd(s);
+  // floppy drives (api/disk/<n>); the MSX1's two drives (api/msxdisk/<n>); the hard disks are in the FreHD panel
+  buildCards($("drives"), s.drives.map((d, n) => ["disk", n, "Drive " + n, d]));
+  buildCards($("cocodrives"), (s.cocodisks || []).map((d, n) => ["cocodisk", n, "Drive " + n, d]));
+  $("cocoDiskPanel").style.display = machine === "cp400" ? "" : "none";
+  buildCards($("msxdrives"), (s.msxdisks || []).map((d, n) => ["msxdisk", n, "Drive " + "AB"[n], d]));
+  $("msxDiskPanel").style.display = machine === "msx1" ? "" : "none";
+  $("bMsxDiskEj").style.display = s.roms.msx1disk ? "" : "none";
+  showTape(s.tape);
+}
+// the FreHD's SD card: every file, with the hard disk it is mounted in, and what can be done with it
+function showSd(s) {
+  const host = $("sdFiles"); host.textContent = "";
+  const files = s.sdfiles || [];
+  if (!files.length) { host.textContent = "The SD card is empty."; return; }
+  files.forEach(f => {
+    const row = document.createElement("div"); row.className = "row";
+    const mounted = [0, 1].filter(h => s.hd && s.hd[h] && s.hd[h].size && s.hd[h].name === f.name);
+    const nm = document.createElement("span");
+    nm.textContent = f.name + " (" + (f.size >= 1048576 ? (f.size / 1048576).toFixed(1) + " MB" : Math.round(f.size / 1024) + " KB") + ")" +
+      (mounted.length ? "  \u2014 hard disk " + mounted.join(" and ") : "");
+    nm.style.minWidth = "220px"; nm.style.fontWeight = mounted.length ? "bold" : "normal";
+    row.append(nm);
+    const btn = (text, title, fn) => { const b = document.createElement("button"); b.textContent = text; b.title = title; b.onclick = fn; row.append(b); };
+    if (!/\.rom$/i.test(f.name)) {
+      [0, 1].forEach(h => {
+        if (mounted.includes(h)) btn("Unmount HD " + h, "Take " + f.name + " out of hard disk " + h, () => fetch(BASE + "api/hd/" + h, { method: "DELETE" }));
+        else btn("Mount as HD " + h, "Mount " + f.name + " as hard disk " + h, async () => {
+          const r = await fetch(BASE + "api/sd/" + encodeURIComponent(f.name) + "?hd=" + h, { method: "POST" });
+          const j = await r.json().catch(() => ({}));
+          say(r.ok ? f.name + " mounted in hard disk " + h : "Not a hard disk image: " + (j.error || r.status), !r.ok);
+        });
+      });
+    }
+    btn("Download", "Download " + f.name, () => { location.href = BASE + "api/sd/" + encodeURIComponent(f.name); });
+    btn("Remove", "Delete " + f.name + " from the SD card", () => fetch(BASE + "api/sd/" + encodeURIComponent(f.name), { method: "DELETE" }));
+    host.append(row);
+  });
+}
+function buildCards(host, cards) {
+  host.textContent = "";
+  cards.forEach(([kind, n, label, d]) => {
+    const el = document.createElement("div"); el.className = "drive";
+    const nm = document.createElement("div"); nm.className = "nm";
+    nm.textContent = d.size ? d.name + " (" + Math.round(d.size / 1024) + " KB)" : "empty";
+    const b = document.createElement("b"); b.textContent = label;
+    const row = document.createElement("div"); row.className = "row";
+    if (d.size) {
+      const dl = document.createElement("button"); dl.textContent = "Download";
+      dl.onclick = () => { location.href = BASE + "api/" + kind + "/" + n; };
+      const ej = document.createElement("button"); ej.textContent = "Eject";
+      ej.onclick = () => fetch(BASE + "api/" + kind + "/" + n, { method: "DELETE" });
+      row.append(dl, ej);
+    }
+    const pick = document.createElement("input"); pick.type = "file"; pick.style.maxWidth = "170px";
+    pick.onchange = () => pick.files[0] && putDisk(kind, n, label, pick.files[0]);
+    row.append(pick);
+    el.append(b, nm, row);
+    el.addEventListener("dragover", e => { e.preventDefault(); el.classList.add("over"); });
+    el.addEventListener("dragleave", () => el.classList.remove("over"));
+    el.addEventListener("drop", e => { e.preventDefault(); el.classList.remove("over"); if (e.dataTransfer.files[0]) putDisk(kind, n, label, e.dataTransfer.files[0]); });
+    host.appendChild(el);
+  });
+}
+// ---- the cassette: .wav files are turned into pulse entries here (the board would take minutes for a long tape)
+async function wavToPulses(f) {
+  const ac = new (window.AudioContext || window.webkitAudioContext)();
+  const buf = await ac.decodeAudioData(await f.arrayBuffer());
+  ac.close && ac.close();
+  const d = buf.getChannelData(0), rate = buf.sampleRate;
+  let peak = 0;
+  for (let i = 0; i < d.length; i++) { const a = Math.abs(d[i]); if (a > peak) peak = a; }
+  const thr = (peak || 1) / 16, words = [];
+  let level = d[0] > 0, last = 0, first = true;
+  const put = x => {
+    x = Math.max(1, Math.round(x));
+    while (x > 1048575) { words.push((0x80000000 | 1048575) >>> 0); x -= 1048575; }
+    words.push(x);
+  };
+  for (let i = 0; i < d.length; i++) {
+    const v = d[i];
+    if ((level && v < -thr) || (!level && v > thr)) {
+      level = !level;
+      if (!first) put((i - last) * 1e6 / rate);
+      first = false; last = i;
+    }
+  }
+  return new Uint32Array(words).buffer;
+}
+async function tapeCmd(cmd, value) {
+  const r = await fetch(BASE + "api/tape", { method: "POST", body: JSON.stringify({ cmd, value }) });
+  if (!r.ok) say("Tape: " + ((await r.json().catch(() => ({}))).error || r.status), true);
+}
+function showTape(t) {
+  if (!t) return;
+  const secs = Math.round(t.us / 1e6), frac = t.len ? t.pos / t.len : 0;
+  const mmss = s => Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+  $("tapeName").textContent = t.len ? t.name + " — " + mmss(Math.round(secs * frac)) + " of " + mmss(secs) +
+    (t.play ? (t.running ? " (playing)" : " (waiting for the computer's motor)") : "") : "empty";
+  $("tapeRec").textContent = t.rec ? "recording: " + t.recorded + " changes" : t.recorded ? t.recorded + " changes recorded" : "";
+  $("tForce").checked = !!t.force;
+  $("tPlay").classList.toggle("on", !!t.play);
+  $("tRec").classList.toggle("on", !!t.rec);
+}
+$("tapeFile").onchange = async e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  say("Loading " + f.name + "…");
+  try {
+    let body, name = f.name;
+    if (/\.wav$/i.test(name)) { body = await wavToPulses(f); name = name.replace(/\.wav$/i, ".tpl"); }
+    else body = await f.arrayBuffer();
+    const r = await fetch(BASE + "api/tape?name=" + encodeURIComponent(name), { method: "PUT", body });
+    const j = await r.json().catch(() => ({}));
+    say(r.ok ? f.name + " is in the recorder (" + j.seconds + " s)" : "Could not load the tape: " + (j.error || r.status), !r.ok);
+  } catch (err) { say("Could not read " + f.name + ": " + err, true); }
+  e.target.value = "";
+};
+$("tPlay").onclick = () => tapeCmd("play");
+$("tStop").onclick = () => tapeCmd("stop");
+$("tRew").onclick = () => tapeCmd("rewind");
+$("tEject").onclick = () => fetch(BASE + "api/tape", { method: "DELETE" });
+$("tForce").onchange = e => tapeCmd("force", e.target.checked);
+$("tRec").onclick = () => tapeCmd("record");
+$("tStopRec").onclick = () => tapeCmd("stoprec");
+$("tSave").onclick = () => { location.href = BASE + "api/tape/rec.wav"; };
+
+async function putDisk(kind, n, label, f) {
+  say("Loading " + f.name + "…");
+  const r = await fetch(BASE + "api/" + kind + "/" + n + "?name=" + encodeURIComponent(f.name), { method: "PUT", body: await f.arrayBuffer() });
+  const j = await r.json().catch(() => ({}));
+  say(r.ok ? f.name + " mounted in " + label.toLowerCase() + (j.info && j.info.warnings && j.info.warnings.length ? " (" + j.info.warnings.length + " warnings)" : "")
+           : "Could not mount: " + (j.error || r.status), !r.ok);
+}
+async function putRom(kind, f) {
+  const r = await fetch(BASE + "api/rom/" + kind, { method: "PUT", body: await f.arrayBuffer() });
+  const j = await r.json().catch(() => ({}));
+  say(r.ok ? kind + " ROM loaded" : (j.error || "ROM rejected"), !r.ok);
+}
+$("sdFile").onchange = async e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const r = await fetch(BASE + "api/sd/" + encodeURIComponent(f.name), { method: "PUT", body: await f.arrayBuffer() });
+  say(r.ok ? f.name + " is on the SD card" : "Could not store " + f.name, !r.ok);
+  e.target.value = "";
+};
+// one step: pick the image, it goes to the SD card and into the hard disk
+function pickFile(cb) {
+  const i = document.createElement("input"); i.type = "file";
+  i.onchange = () => i.files[0] && cb(i.files[0]);
+  i.click();
+}
+$("sdLoad0").onclick = () => pickFile(f => putDisk("hd", 0, "Hard disk 0 (FreeHD)", f));
+$("sdLoad1").onclick = () => pickFile(f => putDisk("hd", 1, "Hard disk 1 (FreeHD)", f));
+$("romSys").onchange = e => e.target.files[0] && putRom("system", e.target.files[0]);
+$("romChar").onchange = e => e.target.files[0] && putRom("chargen", e.target.files[0]);
+$("romBas").onchange = e => e.target.files[0] && putRom("cp400bas", e.target.files[0]);
+$("romCart").onchange = e => e.target.files[0] && putRom("cp400cart", e.target.files[0]);
+$("ideFile").onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  say("Loading " + f.name + "…");
+  const r = await fetch(BASE + "api/ide?name=" + encodeURIComponent(f.name), { method: "PUT", body: await f.arrayBuffer() });
+  const j = await r.json().catch(() => ({}));
+  say(r.ok ? f.name + " is the IDE disk (" + j.info.sectors + " sectors)" : "Could not mount: " + (j.error || r.status), !r.ok);
+};
+$("ideDl").onclick = () => { location.href = BASE + "api/ide"; };
+$("ideEj").onclick = () => fetch(BASE + "api/ide", { method: "DELETE" });
+$("romMsxBios").onchange = e => e.target.files[0] && putRom("msx1bios", e.target.files[0]);
+$("romMsxP2").onchange = e => e.target.files[0] && putRom("msx1p2", e.target.files[0]);
+$("romMsxCart").onchange = e => e.target.files[0] && putRom("msx1cart", e.target.files[0]);
+$("bCartEj").onclick = () => fetch(BASE + "api/rom/cp400cart", { method: "DELETE" });
+$("bMsxP2Ej").onclick = () => fetch(BASE + "api/rom/msx1p2", { method: "DELETE" });
+$("bMsxCartEj").onclick = () => fetch(BASE + "api/rom/msx1cart", { method: "DELETE" });
+$("romZx").onchange = e => e.target.files[0] && putRom("zx48", e.target.files[0]);
+$("romMsxDisk").onchange = e => e.target.files[0] && putRom("msx1disk", e.target.files[0]);
+$("bMsxDiskEj").onclick = () => fetch(BASE + "api/rom/msx1disk", { method: "DELETE" });
+$("romMc").onchange = e => e.target.files[0] && putRom("mc1000", e.target.files[0]);
+$("romAlice").onchange = e => e.target.files[0] && putRom("alice", e.target.files[0]);
+$("romAll400").onchange = e => e.target.files[0] && putRom("cp400", e.target.files[0]);
+$("romExt").onchange = e => e.target.files[0] && putRom("cp400ext", e.target.files[0]);
+$("machine").onchange = e => ctrl({ machine: e.target.value });
+$("bArt").onclick = () => {
+  art = (art + 1) % 3;
+  try { localStorage.setItem("cp400art", art); } catch (e) {}
+  $("bArt").textContent = ["Artifact: off", "Artifact: orange/blue", "Artifact: blue/orange"][art];
+  if (prev) draw(prev);
+};
+$("bArt").textContent = ["Artifact: off", "Artifact: orange/blue", "Artifact: blue/orange"][art];
+$("bRun").onclick = () => ctrl({ power: state && state.run ? 0 : 1 });
+$("bReset").onclick = () => ctrl({ reset: 1 });
+$("bTurbo").onclick = () => ctrl({ turbo: state && state.turbo ? 0 : 1 });
+$("bWp").onclick = () => ctrl({ wp: state && state.wp ? 0 : 1 });
+$("bSound").onclick = async () => {
+  soundOn = !soundOn; $("bSound").classList.toggle("on", soundOn);
+  if (soundOn) { ac = ac || new AudioContext(); await ac.resume(); playhead = 0; lastT = null; }
+};
+$("phos").onchange = e => { setInk(e.target.value); try { localStorage.setItem("cp300.phos", e.target.value); } catch (x) {} };
+try { const p = localStorage.getItem("cp300.phos"); if (p) $("phos").value = p; } catch (x) {}
+setInk($("phos").value);
+buildOsk();
+draw(new Uint8Array(12288));
+connect();
+</script>
+</body>
+</html>

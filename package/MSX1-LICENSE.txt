@@ -1,0 +1,35 @@
+MSX1 machine of the CP-300 package: licence notices
+===================================================
+
+The MSX1 machine in the gateware uses the sound chip (PSG) of the OCM-PLD ("OneChip MSX", KdL), which is derived from the
+ESE MSX-SYSTEM3 of ESE Artists' Factory:
+
+  PSG       Copyright (c) 2006 Kazuhiro Tsujikawa (ESE Artists' factory)
+  OCM-PLD   KdL (https://github.com/gnogni/ocm-pld-dev), with parts by Takayuki Hara and others (see the headers of the source files)
+
+All rights reserved. The source files in syn/beaglev-fire/msx1/ocm keep their original notices.
+
+Redistribution and use of this software or any derivative works, are permitted provided that the following conditions are met:
+
+ 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+ 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer
+    in the documentation and/or other materials provided with the distribution.
+ 3. Redistributions may not be sold, nor may they be used in a commercial product or activity without specific prior written
+    permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
+IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+In short: the MSX1 machine of this package may not be sold and may not be used in a commercial product or activity. The MSX ROMs
+(BIOS) are not part of the package; bring your own (C-BIOS, which is free, works).
+
+Its video chip (TMS9918A) is vdp18 by Arnim Laeuger (syn/beaglev-fire/msx1/vdp18, taken from MSX1fpga):
+
+  Copyright (c) 2006, Arnim Laeuger (arnim.laeuger@gmx.net). All rights reserved.
+  Redistribution and use in source and synthesized forms, with or without modification, are permitted provided that the source
+  files keep the copyright notice and that synthesized forms reproduce it in their documentation (this file). The vdp18 folder
+  also carries the GNU GPL version 2 (COPYING) it was distributed with.

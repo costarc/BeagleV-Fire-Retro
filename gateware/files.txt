@@ -1,0 +1,18 @@
+# Sources of the CP-300 gateware component, paths relative to the repository root (Beagle-V_Multicore).
+# Verilog (this folder)
+syn/beaglev-fire/rtl/bvf_core_apb.v
+syn/beaglev-fire/rtl/bvf_core_bus.v
+syn/beaglev-fire/rtl/apb_regbus.v
+syn/beaglev-fire/rtl/bvf_regs.v
+syn/beaglev-fire/rtl/bvf_fb.v
+syn/beaglev-fire/rtl/bvf_fdc.v
+syn/beaglev-fire/rtl/bvf_audio.v
+syn/beaglev-fire/rtl/bvf_ide.v
+syn/beaglev-fire/rtl/bvf_ramclr.v
+syn/beaglev-fire/rtl/bvf_frehd.v
+# (axil_regbus.v is only for a design that exposes AXI4-Lite instead of APB)
+# VHDL taken from the Pocket port, unchanged
+syn/analogue/src/fpga/core/ht1080z_ext.vhd
+syn/analogue/src/fpga/core/cp300_roms_stub.vhd
+# VHDL / Verilog of the core: rtl/ht1080z/*, rtl/fdc/wd1793.vhd, rtl/hdc/wd1010.vhd, rtl/T80/*, rtl/cp300/cp300_rom.vhd (see syn/de0/cp300_de0.qsf for the exact list)
+# The CP-400 machine (VHDL, syn/beaglev-fire/cp400): cp400_core.vhd with cpu09, mc6883, mc6847, pia6821 (patched copies of the CP400_COLOR_FPGA files) and cp400_chargen / cp400_linebuf

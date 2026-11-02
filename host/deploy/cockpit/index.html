@@ -1,0 +1,19 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Retro Computers</title>
+<script src="../base1/cockpit.js"></script>
+<style>
+  body { font: 16px system-ui, sans-serif; margin: 2rem; max-width: 40rem; }
+  a.open { display: inline-block; padding: .6rem 1.2rem; border-radius: 4px; background: #0066cc; color: #fff; text-decoration: none; }
+  .status { margin: .4rem 0; color: #555; }
+  code { background: #eee; padding: 0 .25em; }
+</style>
+<h1>Retro Computers</h1>
+<p>The retro computers run in the FPGA: CP-300 (TRS-80 Model III), CP-400 (CoCo 2), MSX1, ZX Spectrum, MC-1000 and Alice; the screen, keyboard, sound, tapes and disks are in the browser.</p>
+<!-- Cockpit is served over https on port 9090; the CP-300 page is on the stock web server (port 80), so it opens in its own tab -->
+<p><a class="open" id="open" target="_blank" rel="noopener">Open Retro Computers</a></p>
+<p class="status" id="gateware">Gateware: checking...</p>
+<p class="status" id="daemon">Daemon: checking...</p>
+<p class="status">If another gateware was flashed, load the CP-300 one again with <code>sudo cp300-load-gateware</code> on the board (it reboots).</p>
+<script src="cp300.js"></script>

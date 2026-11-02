@@ -1,0 +1,25 @@
+#!/bin/bash
+# Loads the CP-300 gateware again (after another gateware was flashed): sudo cp300-load-gateware [--yes]
+# The board is reflashed and reboots by itself; do not power it off until it is back.
+set -euo pipefail
+
+GW_DIR=/usr/share/beagleboard/gateware/cp300
+CHANGE_GW=/usr/share/beagleboard/gateware/change-gateware.sh
+
+if [ "$(id -u)" -ne 0 ]; then
+	exec sudo "$0" "$@"
+fi
+[ -d "$GW_DIR/LinuxProgramming" ] || { echo "ERROR: $GW_DIR not found: run the CP-300 installer again" >&2; exit 1; }
+[ -x "$CHANGE_GW" ] || { echo "ERROR: $CHANGE_GW not found" >&2; exit 1; }
+
+echo
+cat "$GW_DIR/DISCLAIMER.txt" 2>/dev/null || echo "DISCLAIMER: flashing the board can leave it unable to start; you do this at your own risk."
+echo
+echo "This flashes the CP-300 gateware ($(cat "$GW_DIR/GATEWARE_ID" 2>/dev/null)) and reboots the board."
+if [ "${1:-}" = "--yes" ] || [ "${1:-}" = "-y" ]; then
+	echo "--yes given: you accept the DISCLAIMER above"
+else
+	read -r -p "Type I ACCEPT to accept the disclaimer and flash, anything else to cancel: " ans
+	[ "$ans" = "I ACCEPT" ] || exit 0
+fi
+exec "$CHANGE_GW" "$GW_DIR"
