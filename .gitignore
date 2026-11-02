@@ -11,3 +11,6 @@ alice/emu/build/
 HANDOVER*.md
 PLAN*.md
 *-PLAN.md
+
+# python sources stay local
+*.py
