@@ -6,3 +6,8 @@ alice/emu/build/
 # ROM images are copyrighted: never commit them
 *.rom
 *.ROM
+
+# session handovers and plans stay local
+HANDOVER*.md
+PLAN*.md
+*-PLAN.md
