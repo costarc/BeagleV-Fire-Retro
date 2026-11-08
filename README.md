@@ -4,6 +4,19 @@ An FPGA recreation of the **Prológica CP-300** (the Brazilian TRS-80 Model III 
 [BeagleV-Fire](https://www.beagleboard.org/boards/beaglev-fire): a RISC-V Linux board with a Microchip PolarFire SoC
 (MPFS025T) and about 23K logic elements of FPGA fabric. This is a project of its own (it started inside the CP-300 FPGA repository, which holds the CP-300 for other boards): the gateware, the board software and the package live here. The CP-300 core files it shares are vendored in `cp300core/`, the Z80 is the T80 submodule in `third_party/T80`.
 
+## 📖 The Book
+
+This project is **Chapter 12, "BeagleV-Fire Retro"**, in a book:
+
+**Chips, Code, and Cartridges: Turn Curiosity into Creation with 13 Hands-On Projects, from 8-bit Classics to FPGAs**
+
+It walks through thirteen of my own hardware and software projects, from 8-bit classics to FPGAs, for beginners and curious makers. Each chapter explains how one project works and how to build it, with colour diagrams and real code from its repository.
+
+### 👉 [Get the book on Amazon](https://link.amazon/B013Yaq9y)
+
+<sub>As an Amazon Associate, the author earns from qualifying purchases. Buying through this link
+supports these projects at no extra cost to you.</sub>
+
 One bitstream, several machines (CP-300, CP-400, MSX1, ZX Spectrum, MC-1000, Matra Alice), selected from the web page. See `HANDOVER-multi-machine.md`.
 
 The board has no video output and no keyboard port for the FPGA, so **the browser is the monitor, keyboard, speaker and
